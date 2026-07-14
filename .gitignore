@@ -5,4 +5,7 @@ intermediates/*
 .Rproj*
 .positai
 .$pipeline.drawio.bkp
+env/.pixi/
+env/docker.token
+env/work/
 test/*
