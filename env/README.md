@@ -1,6 +1,8 @@
-# dnacomb release image
+# DNAComb release image
 
-Normal release:
+This folder contains the build system to generate Docker/Singularity images for DNAComb and pipeline releases.
+
+For a normal release run:
 
 ```bash
 make release
@@ -14,7 +16,7 @@ Prepare local tools and DockerHub login only:
 make init
 ```
 
-The base is fixed and reused:
+The base is fixed and reused, including the other tools needed for the pipeline:
 
 ```bash
 mercury/dnacomb:base

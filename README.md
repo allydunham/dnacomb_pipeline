@@ -16,10 +16,10 @@ Additionally the fastq/a files at each stage are checked with [SeqKit Stats](htt
 
 ## Requirements
 
-You need the following tools installed to use the corresponding pipeline stages:
+The pipeline relies on [Nextflow](https://www.nextflow.io) (>=25.04) and has a number of other dependencies, which can be installed locally or accessed via our container using Docker, Singularity or Apptainer.
+These can be accessed using the `-with-singularity` or `-with-docker` Nextflow arguments.
+If installing locally, the following tools are required:
 
-- [Nextflow](https://www.nextflow.io) (>=25.04)
-- Docker or Singularity/Apptainer when using the container profiles
 - [DNAComb](https://github.com/allydunham/dnacomb)
 - [SeqTK](https://github.com/lh3/seqtk)
 - [PEAR](https://cme.h-its.org/exelixis/web/software/pear/doc.html)
@@ -28,6 +28,7 @@ You need the following tools installed to use the corresponding pipeline stages:
 - [FastQC](https://github.com/s-andrews/FastQC)
 - [SeqKit](https://bioinf.shenwei.me/seqkit/)
 - R (>=4.0.0)
+- Python (>=3.11.0)
 
 The following R packages are needed:
 
@@ -52,10 +53,11 @@ nextflow run allydunham/dnacomb_pipeline -config path/to/config
 To run with the released DockerHub image through Singularity:
 
 ```bash
-DNACOMB_VERSION=1.0.0 nextflow run . -with-singularity -config path/to/config
+nextflow run . -with-singularity -config path/to/config
 ```
 
-The container defaults to `mercury/dnacomb:<DNACOMB_VERSION>`. Set `DNACOMB_IMAGE_REPO` or `DNACOMB_IMAGE` to use another DockerHub repository or exact image.
+The container defaults to `mercury/dnacomb` with the latest DNAComb release. Set `DNACOMB_VERSION`, `DNACOMB_IMAGE_REPO` or `DNACOMB_IMAGE` to use another version, DockerHub repository or exact image.
+The environment image release tooling lives in `env/`.
 
 Alternatively if you want a local copy, for instance to customise, clone the repo and run:
 
@@ -65,13 +67,13 @@ cd dnacomb_pipeline
 nextflow run main.nf -config path/to/config
 ```
 
-Environment image release tooling lives in `env/`. Normal image release is:
+We provide a simple test dataset in `test/` to check the pipeline is working on your system, which can be accessed using
 
 ```bash
-make -C env release
+nextflow run main.nf -config test/test.config
 ```
 
-Run the test suite with Singularity:
+or
 
 ```bash
 make test
