@@ -245,23 +245,31 @@ libraries <- map(params$library_files, read_lib) %>%
 
 root_names <- basename(params$root_paths)
 
+library_cols <- cols(.default = col_character(), combinations_in_library = col_integer(), count = col_integer())
+
 library_counts <- str_c(params$root_paths, ".library_counts.tsv") %>%
   set_names(root_names) %>%
-  map(read_tsv) %>%
+  map(read_tsv, col_types = library_cols) %>%
   bind_rows(.id = "_sample") %>%
   mutate(combination_status = factor(combination_status, levels = rev(names(category_colours))))
 
+summary_cols <- cols(.default = col_character(), overall_proportion = col_double(), group_proportion = col_double(), count = col_integer())
+
 summary <- str_c(params$root_paths, ".summary.tsv") %>%
   set_names(root_names) %>%
-  map(read_tsv) %>%
+  map(read_tsv, col_types = summary_cols) %>%
   bind_rows(.id = "_sample")
+
+filtering_cols <- cols(.default = col_integer(), group  = col_character(), forward = col_character(), reverse = col_character())
 
 filtering <- str_c(params$root_paths, ".filtered.tsv") %>%
   set_names(root_names) %>%
-  map(read_tsv) %>%
+  map(read_tsv, col_types = filtering_cols) %>%
   bind_rows(.id = "_sample")
 
-record_counts <- read_tsv(params$record_counts_file) %>%
+record_cols <- cols(.default = col_character(), stage = col_integer(), records = col_integer())
+
+record_counts <- read_tsv(params$record_counts_file, col_types = record_cols) %>%
   group_by(sample_id, stage, label, read) %>%
   summarise(records = sum(records), .groups = "drop") %>%
   pivot_wider(names_from = read, values_from = records)
@@ -538,36 +546,32 @@ calc_library_representation <- function(tbl, ...) {
     ungroup()
 }
 
-rep_all <- count(library_counts, `_sample_disp`, !!!rlang::syms(regions), combination_status, combinations_in_library,
-                 combination_id, wt = count, name = "count") %>%
-  calc_library_representation(`_sample_disp`)
-
-rep_lib <- filter(library_counts, combinations_in_library == 1) %>%
-  count(`_sample_disp`, !!!rlang::syms(regions), combination_status, combinations_in_library,
-        combination_id, wt = count, name = "count") %>%
-  calc_library_representation(`_sample_disp`)
+reps <- bind_rows(
+  rep_all = count(library_counts, `_sample_disp`, !!!rlang::syms(regions), combination_status, combinations_in_library,
+                  combination_id, wt = count, name = "count") %>% 
+    calc_library_representation(`_sample_disp`),
+  rep_lib = filter(library_counts, combinations_in_library == 1) %>%
+    count(`_sample_disp`, !!!rlang::syms(regions), combination_status, combinations_in_library,
+          combination_id, wt = count, name = "count") %>%
+    calc_library_representation(`_sample_disp`),
+  .id = "split"
+)
 
 if (n_samples > 8) {
   top_lib <- distinct(rep_all, `_sample_disp`, auc) %>%
     arrange(auc) %>%
     slice(c(1, 2, 3, 4, n() - 3, n() - 2, n() - 1, n())) %>%
     pull(`_sample_disp`)
-
-  p_rep_all <- ggplot(mapping = aes(x = prop_rank, y = cumprop_reads)) +
+  
+  ggplot(mapping = aes(x = prop_rank, y = cumprop_reads)) +
+    facet_grid(cols = vars(split), labeller = labeller(split = c(rep_all = "All Combinations", rep_lib = "In Library"))) +
     geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
-    geom_line(data = filter(rep_all, !`_sample_disp` %in% top_lib), mapping = aes(group = `_sample_disp`)) +
-    geom_line(data = filter(rep_all, `_sample_disp` %in% top_lib), mapping = aes(colour = `_sample_disp`)) +
-    labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads", title = "All Combinations") +
+    geom_line(data = filter(reps, !`_sample_disp` %in% top_lib), mapping = aes(group = `_sample_disp`)) +
+    geom_line(data = filter(reps, `_sample_disp` %in% top_lib), mapping = aes(colour = `_sample_disp`)) +
+    labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads") +
     scale_colour_brewer(palette = "Dark2", name = "") +
-    guides(colour = guide_legend(direction = "horizontal", nrow = 3))
-
-  p_rep_lib <- ggplot(mapping = aes(x = prop_rank, y = cumprop_reads)) +
-    geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
-    geom_line(data = filter(rep_lib, !`_sample_disp` %in% top_lib), mapping = aes(group = `_sample_disp`)) +
-    geom_line(data = filter(rep_lib, `_sample_disp` %in% top_lib), mapping = aes(colour = `_sample_disp`)) +
-    labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads", title = "In Library") +
-    scale_colour_brewer(palette = "Dark2", name = "") +
-    guides(colour = guide_legend(direction = "horizontal", nrow = 3))
+    guides(colour = guide_legend(direction = "horizontal", nrow = 3)) +
+    theme(legend.position = "bottom")
 } else {
   leg_rows <- case_when(
     n_samples > 6 ~ 3,
@@ -575,23 +579,15 @@ if (n_samples > 8) {
     TRUE ~ 1
   )
 
-  p_rep_all <- ggplot(rep_all, aes(x = prop_rank, y = cumprop_reads, colour = `_sample_disp`)) +
+  ggplot(reps, aes(x = prop_rank, y = cumprop_reads, colour = `_sample_disp`)) +
+    facet_grid(cols = vars(split), labeller = labeller(split = c(rep_all = "All Combinations", rep_lib = "In Library"))) +
     geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
     geom_line() +
-    labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads", title = "All Combinations") +
+    labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads") +
     scale_colour_brewer(palette = "Dark2", name = "") +
-    guides(colour = guide_legend(direction = "horizontal", nrow = leg_rows))
-
-  p_rep_lib <- ggplot(rep_lib, aes(x = prop_rank, y = cumprop_reads, colour = `_sample_disp`)) +
-    geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
-    geom_line() +
-    labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads", title = "In Library") +
-    scale_colour_brewer(palette = "Dark2", name = "") +
-    guides(colour = guide_legend(direction = "horizontal", nrow = leg_rows))
+    guides(colour = guide_legend(direction = "horizontal", nrow = leg_rows)) +
+    theme(legend.position = "bottom")
 }
-
-p_rep_all + p_rep_lib + guide_area() +
-  plot_layout(heights = c(1, 0.2), widths = c(0.5, 0.5), design = "12\n33", guides = "collect", axis_titles = "collect")
 ```
 
 ```{r lib_representation_fig, fig.height=plot_size(length(libraries) %/% 2, min = 6, plus = 2, per_sample = 4), fig.width=7, fig.cap="Sub-library Representation"}
