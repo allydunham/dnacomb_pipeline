@@ -262,9 +262,17 @@ summary <- str_c(params$root_paths, ".summary.tsv") %>%
 
 filtering_cols <- cols(.default = col_integer(), group  = col_character(), forward = col_character(), reverse = col_character())
 
+# Only care about the most frequently filtered reads for the report, summary already contains the stats
+# So don't waste memory reading all of them
+read_filtering <- function(x) {
+  read_tsv(x, col_types = filtering_cols) %>%
+    arrange(desc(count)) %>%
+    slice_head(n = 5)
+}
+
 filtering <- str_c(params$root_paths, ".filtered.tsv") %>%
   set_names(root_names) %>%
-  map(read_tsv, col_types = filtering_cols) %>%
+  map(read_filtering) %>%
   bind_rows(.id = "_sample")
 
 record_cols <- cols(.default = col_character(), stage = col_integer(), records = col_integer())
