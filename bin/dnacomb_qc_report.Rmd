@@ -566,7 +566,8 @@ reps <- bind_rows(
 )
 
 if (n_samples > 8) {
-  top_lib <- distinct(rep_all, `_sample_disp`, auc) %>%
+  top_lib <- filter(reps, split == "rep_all") %>%
+    distinct(`_sample_disp`, auc) %>%
     arrange(auc) %>%
     slice(c(1, 2, 3, 4, n() - 3, n() - 2, n() - 1, n())) %>%
     pull(`_sample_disp`)
